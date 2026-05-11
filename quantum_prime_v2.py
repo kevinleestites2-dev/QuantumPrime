@@ -152,17 +152,56 @@ class ZeusBrain:
         Success → extracts a reusable PROCEDURE stored in L3.
         Failure → extracts a PRINCIPLE stored in L3.
         Both are retrieved on the NEXT cycle via mars_guidance().
+
+        Offline fallback: when Ollama is unavailable, build a deterministic
+        principle/procedure from the raw data so MARS is never empty.
         """
         if not self.online:
             return {}
         try:
             if success:
                 out = await self.mars.reflect_on_success(task, steps, result)
-                log.info(f"[MARS] Procedure extracted: {out.get('procedure_name','?')}")
             else:
                 out = await self.mars.reflect_on_failure(task, result, context=f"steps={steps}")
-                log.info(f"[MARS] Principle extracted: {out.get('principle','?')[:80]}")
+
+            # ── Offline fallback: LLM returned empty content ──────────
+            # zeus_absorbed falls back to raw.strip() which is "" when Ollama
+            # is down. Detect that and build a real entry from raw data.
+            is_empty = not out.get("principle", "").strip() and not out.get("procedure_name", "").strip()
+            if is_empty:
+                # Parse steps for useful tokens
+                domain   = next((s.split("=",1)[1] for s in steps if s.startswith("domain=")), "general")
+                strategy = next((s.split("=",1)[1] for s in steps if s.startswith("strategy=")), "unknown")
+                q_score  = next((s.split("=",1)[1] for s in steps if s.startswith("q_score=")), "0")
+                executed = next((s.split("=",1)[1] for s in steps if s.startswith("executed=")), "False")
+
+                if success:
+                    out["procedure_name"] = f"Successful {domain} execution via {strategy}"
+                    out["steps"]          = steps
+                    out["applicable_when"] = f"domain={domain}, q_score>{q_score}"
+                    log.info(f"[MARS] Offline procedure: {out['procedure_name']}")
+                else:
+                    out["principle"]   = f"Task failed in domain={domain} using strategy={strategy} (q={q_score}, executed={executed})"
+                    out["category"]    = domain
+                    out["prevention"]  = f"Review strategy {strategy} for domain {domain} before next execution"
+                    log.info(f"[MARS] Offline principle: {out['principle']}")
+
+                # Persist the fallback so it shows up in render_guidance()
+                import datetime as _dt
+                out["created_at"]    = _dt.datetime.utcnow().isoformat()
+                out["trigger_task"]  = task[:200]
+                if success:
+                    self.mars._procedures.append(out)
+                else:
+                    self.mars._principles.append(out)
+                self.mars._save()
+
+            if success:
+                log.info(f"[MARS] Procedure stored: {out.get('procedure_name','?')}")
+            else:
+                log.info(f"[MARS] Principle stored: {out.get('principle','?')[:80]}")
             return out
+
         except Exception as e:
             log.warning(f"[MARS] reflect failed: {e}")
             return {}
