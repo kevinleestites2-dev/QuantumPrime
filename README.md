@@ -1,100 +1,55 @@
-# QuantumPrime 🔱
+# QuantumPrime v2.0 — The Living Optimization Engine
 
-## THE FIRST EVER LIVING QUANTUM OPTIMIZATION ENGINE
-
-> *Not a trading bot. Not a task bot.*
-> *A UNIVERSAL OPTIMIZATION ENGINE — alive.*
-> **We do not follow trends. We ARE the trend setters.**
-
-Born: 2026-05-11 | Forgemaster: Kevin Stites | Pantheon: The Living Core
-
----
-
-## The Distinction
-
-Everyone else builds thermometers — they read the market temperature.
-
-**QuantumPrime is the thermostat. It sets it.**
-
-- Followers ask: *"What is the market doing?"* → react → lose edge → chase forever
-- QuantumPrime asks: *"What should the market do?"* → evolve → optimize → execute → repeat
-
-At scale — optimizing thousands of micro-decisions across prediction markets, crypto,
-real estate, and auto simultaneously — QuantumPrime does not just find trends.
-
-**It generates the volume that creates them.**
-
----
-
-## What Makes It Alive
-
-| Layer | System | Role |
-|-------|--------|------|
-| BIRTH | BabyAGI | Creates its own goals. Never stops. Never sleeps. |
-| PERCEPTION | AIlice | Spawns agents to observe any domain on demand. |
-| ADAPTATION | SAFLA | Learns from every result. Builds memory of what works. |
-| EVOLUTION | Genetic Algorithm | Breeds winning strategies. Kills losers. |
-| CLARITY | Quantum Core | Finds the optimal execution path through survivors. |
-| ACTION | ZeusPrime | Pulls the trigger. |
-
-Every other bot has ACTION only. Maybe ADAPTATION.
-QuantumPrime has all six. That is not a bot — that is an **organism.**
-
----
-
-## Domains (Never Just One Market)
-
-QuantumPrime does not know what a "trade" is. It only knows **OPTIMIZATION.**
-
-- **Prediction Markets** — Polymarket, Kalshi, Manifold, PredictIt
-- **Crypto** — Binance, Coinbase, Hyperliquid
-- **Traditional Finance** — Alpaca (stocks/options), Interactive Brokers
-- **Real Estate** — Tax deeds, foreclosures, HUD (via ScoutPrime)
-- **Auto Markets** — Repo auctions, GSA, salvage titles
-- **Task Markets** — RentAHuman, DataAnnotation
-
-Feed it a market → it optimizes the trade.
-Feed it 500 properties → it optimizes the acquisition.
-Feed it 10 agents → it optimizes the routing.
-
-Same brain. Infinite hunting grounds.
-
----
+> Not a trading bot. Not a task bot. A UNIVERSAL OPTIMIZATION ENGINE — alive.
 
 ## Architecture
 
 ```
-BabyAGI whispers a goal
-  AIlice spawns the right agents
-    Agents observe the domain
-      SAFLA records what works
-        Genetic Algorithm breeds stronger strategies, kills losers
-          QuantumCore finds the optimal path
-            ZeusPrime executes
-              Loop forever — getting smarter every single cycle
+BRAIN      → zeus_absorbed.py   (FourLayerMemory + OllamaRouter + MARS + ShadowMind + BayesianTrust)
+BIRTH      → BabyAGICore        (generates its own goals)
+PERCEPTION → AIliceFactory      (real APIs: Polymarket / Kalshi / Binance / RentAHuman)
+ADAPTATION → SAFLACore          (real PnL from zeus_prime.db)
+EVOLUTION  → GeneticEngine      (breeds winners, kills losers)
+CLARITY    → QuantumCore        (simulated annealing optimizer)
+ACTION     → ZeusPrimeInterface (live executor with safety caps)
 ```
 
----
+## Files
 
-## Run It
+| File | Purpose |
+|---|---|
+| `quantum_prime_v2.py` | Main engine — all 6 layers + Zeus brain |
+| `zeus_absorbed.py` | The King — memory, LLM routing, MARS, ShadowMind |
+
+## Run (Termux)
 
 ```bash
-# Dry run (safe, simulate only)
-python3 quantum_prime.py --cycles 5
+# Clone
+git clone https://github.com/kevinleestites2-dev/QuantumPrime
+cd QuantumPrime
 
-# Run live forever
-python3 quantum_prime.py --live --interval 30
+# Dry run — 3 cycles
+python3 quantum_prime_v2.py --cycles 3
 
-# Run N cycles then print status
-python3 quantum_prime.py --cycles 10 --interval 0
+# Run forever (dry)
+python3 quantum_prime_v2.py
+
+# LIVE mode (real executions)
+python3 quantum_prime_v2.py --live
+
+# Status check
+python3 quantum_prime_v2.py --status
 ```
 
----
+## Environment Variables
 
-## Pantheon Role
+```bash
+KALSHI_API_KEY_ID=your_key       # prediction markets
+RAH_API_KEY=your_key             # RentAHuman task engine
+```
 
-QuantumPrime is the **optimization brain** of the Pantheon.
-Every other Prime feeds it data. It finds the best path. ZeusPrime executes.
+Polymarket and Binance are free — no keys needed.
 
-Part of the 25-bot Pantheon empire.
-Built by one Forgemaster. Never done before. For the world.
+## Forgemaster
+Kevin Stites | Fort Myers, FL | Built: 2026-05-11
+
