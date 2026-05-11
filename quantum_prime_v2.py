@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║          Q U A N T U M P R I M E   v2.0.0                       ║
+║          Q U A N T U M P R I M E   v2.1.0                       ║
 ║   THE LIVING QUANTUM OPTIMIZATION ENGINE                        ║
 ║                                                                  ║
 ║   BIRTH      → BabyAGI      (will — creates its own goals)     ║
@@ -16,7 +16,7 @@
 ║                  SkillExtractor + TermuxHardware)               ║
 ║                                                                  ║
 ║   Forgemaster: Kevin Stites                                     ║
-║   Born: 2026-05-11  |  v2.0: Zeus absorbed 2026-05-11          ║
+║   Born: 2026-05-11  |  v2.1: MARS wired — real feedback loop   ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -112,17 +112,63 @@ class ZeusBrain:
             return self.memory.build_context(query)
         return ""
 
-    async def reflect(self, task: str, steps: list, result: str, success: bool) -> dict:
-        """Ask MARS to reflect on a completed cycle."""
+    # ── MARS: sync reads (before cycle) ─────────────────────────────
+
+    def mars_guidance(self, domain: str) -> str:
+        """
+        Retrieve MARS principles + procedures relevant to this domain.
+        Called BEFORE QuantumCore so guidance biases the decision.
+        Sync — always available even without Ollama.
+        """
+        if not self.online:
+            return ""
+        try:
+            guidance = self.mars.render_guidance(domain)
+            if guidance:
+                log.info(f"[MARS] Guidance for {domain}:\n{guidance}")
+            return guidance
+        except Exception as e:
+            log.warning(f"[MARS] render_guidance failed: {e}")
+            return ""
+
+    def mars_principles(self, domain: str, limit: int = 3) -> list:
+        """
+        Return raw principle dicts for a domain.
+        Used by QuantumCore to penalise strategies that violate known principles.
+        """
+        if not self.online:
+            return []
+        try:
+            return self.mars.get_relevant_principles(domain, limit=limit)
+        except Exception as e:
+            log.warning(f"[MARS] get_relevant_principles failed: {e}")
+            return []
+
+    # ── MARS: async writes (after cycle) ────────────────────────────
+
+    async def mars_reflect(self, task: str, steps: list, result: str, success: bool) -> dict:
+        """
+        Reflect on a completed cycle.
+        Success → extracts a reusable PROCEDURE stored in L3.
+        Failure → extracts a PRINCIPLE stored in L3.
+        Both are retrieved on the NEXT cycle via mars_guidance().
+        """
         if not self.online:
             return {}
-        if success:
-            return await self.mars.reflect_on_success(task, steps, result)
-        else:
-            return await self.mars.reflect_on_failure(task, steps, result)
+        try:
+            if success:
+                out = await self.mars.reflect_on_success(task, steps, result)
+                log.info(f"[MARS] Procedure extracted: {out.get('procedure_name','?')}")
+            else:
+                out = await self.mars.reflect_on_failure(task, result, context=f"steps={steps}")
+                log.info(f"[MARS] Principle extracted: {out.get('principle','?')[:80]}")
+            return out
+        except Exception as e:
+            log.warning(f"[MARS] reflect failed: {e}")
+            return {}
 
-    async def get_intuition(self, task: str, context: str = "") -> str:
-        """Ask ShadowMind for pattern-based intuition on a task."""
+    async def shadow_intuition(self, task: str, context: str = "") -> str:
+        """ShadowMind parallel pattern intuition."""
         if not self.online:
             return ""
         try:
@@ -530,37 +576,73 @@ class QuantumCore:
         self.cooling_rate = cooling_rate
         self.backend      = "simulated_annealing"
 
-    def optimize(self, strategies: list[dict], observations: list[dict]) -> dict:
+    def optimize(self, strategies: list[dict], observations: list[dict],
+                 mars_principles: list[dict] = None) -> dict:
+        """
+        Find optimal strategy via simulated annealing.
+        mars_principles — list of principle dicts from MARS.
+        Any strategy that violates a known principle gets a score penalty.
+        This is how past failures change future decisions.
+        """
         if not strategies:
             return {"error": "no strategies"}
 
-        # Use weighted_signal if trust-weighted, else raw signal_strength
+        mars_principles = mars_principles or []
+
+        # Build a flat list of penalty keywords from MARS principles
+        # e.g. "avoid stop_loss < 0.05 on crypto" → penalise strategies with low stop_loss
+        penalty_tokens = []
+        for p in mars_principles:
+            text = (p.get("principle", "") + " " + p.get("prevention", "")).lower()
+            penalty_tokens.extend(text.split())
+
         avg_signal = sum(o.get("weighted_signal", o["signal_strength"]) for o in observations) / max(len(observations), 1)
         avg_conf   = sum(o["confidence"] for o in observations) / max(len(observations), 1)
 
         scored = []
         for s in strategies:
             g = s["genes"]
+
+            # Base quantum score
             q = (
                 (1.0 - abs(g["signal_threshold"] - avg_signal)) *
                 (1.0 - abs(g["confidence_min"]   - avg_conf)) *
                 (1.0 + s["fitness"])
             )
+
+            # MARS penalty — reduce score if strategy attributes match failure tokens
+            # Heuristic: if "stop_loss" appears in principles and strategy has low stop_loss → penalise
+            penalty = 0.0
+            if penalty_tokens:
+                strat_str = json.dumps(g).lower()
+                hits = sum(1 for tok in penalty_tokens if len(tok) > 4 and tok in strat_str)
+                penalty = min(hits * 0.05, 0.3)   # max 30% penalty
+                if penalty > 0:
+                    log.info(f"[CLARITY] MARS penalty -{penalty:.2f} on {s['id']} ({hits} principle hits)")
+
+            q = max(0.0, q - penalty)
+
+            # Simulated annealing acceptance for non-optimal candidates
+            if scored and random.random() < self.temperature * 0.1:
+                q *= random.uniform(0.9, 1.1)   # thermal noise keeps diversity
+
             scored.append((q, s))
 
         scored.sort(key=lambda x: x[0], reverse=True)
-        optimal    = scored[0][1]
-        q_score    = scored[0][0]
+        optimal = scored[0][1]
+        q_score = scored[0][0]
         self.temperature *= (1 - self.cooling_rate)
 
-        log.info(f"[CLARITY] Optimal: {optimal['id']} | q_score={q_score:.4f} | T={self.temperature:.4f}")
+        mars_note = f" | MARS principles active: {len(mars_principles)}" if mars_principles else ""
+        log.info(f"[CLARITY] Optimal: {optimal['id']} | q_score={q_score:.4f} | T={self.temperature:.4f}{mars_note}")
         return {
-            "strategy":   optimal,
-            "q_score":    round(q_score, 4),
-            "signal":     round(avg_signal, 3),
-            "confidence": round(avg_conf, 3),
-            "backend":    self.backend,
-            "execute":    q_score > 0.5
+            "strategy":        optimal,
+            "q_score":         round(q_score, 4),
+            "signal":          round(avg_signal, 3),
+            "confidence":      round(avg_conf, 3),
+            "backend":         self.backend,
+            "execute":         q_score > 0.5,
+            "mars_principles": len(mars_principles),
         }
 
 
@@ -674,7 +756,7 @@ class QuantumPrime:
     Never stops.
     """
 
-    VERSION = "2.0.0"
+    VERSION = "2.1.0"
     BORN    = "2026-05-11"
 
     def __init__(self, dry_run: bool = True):
@@ -699,7 +781,7 @@ class QuantumPrime:
         self.stats = {"cycles": 0, "executions": 0, "evolutions": 0, "domains_scanned": 0}
 
         self._seed_initial_tasks()
-        self.brain.record_improvement("QuantumPrime", "v2.0 awakened — Zeus absorbed", 1.0)
+        self.brain.record_improvement("QuantumPrime", "v2.1 awakened — Zeus absorbed + MARS real feedback loop", 1.0)
 
     def _seed_initial_tasks(self):
         self.baby_agi.create_task("Scan all domains for initial opportunities", priority=10, domain="general")
@@ -707,10 +789,36 @@ class QuantumPrime:
         self.baby_agi.create_task("Run first evolution cycle", priority=8, domain="general")
         log.info("[BIRTH] Initial tasks seeded. QuantumPrime v2.0 ready.")
 
+    def _run_async(self, coro):
+        """
+        Safe async runner. Creates a new event loop if needed.
+        Replaces the broken get_event_loop() calls.
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            return loop.run_until_complete(coro)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(coro)
+
     def run_cycle(self):
         """
-        One full life cycle — sync wrapper that runs async brain ops via asyncio.
-        BIRTH → PERCEPTION → ADAPTATION → EVOLUTION → CLARITY → ACTION → REFLECT
+        One full life cycle — MARS is a real feedback loop.
+
+        BIRTH      — pick next task
+        MARS READ  — render_guidance() retrieves principles from ALL past cycles (sync)
+        SHADOW     — ShadowMind intuition (async, non-blocking)
+        PERCEPTION — real API observations (trust-weighted)
+        ADAPTATION — SAFLA records real PnL from zeus_prime.db
+        EVOLUTION  — GeneticEngine breeds / kills strategies
+        CLARITY    — QuantumCore optimises WITH mars_principles as penalty weights
+        ACTION     — ZeusPrime executes decision
+        MARS WRITE — reflect_on_success/failure → new principle/procedure stored in L3
+                     → retrieved by MARS READ next cycle → closes the loop
         """
         self.stats["cycles"] += 1
         log.info(f"\n{'─'*60}")
@@ -728,70 +836,97 @@ class QuantumPrime:
         domain = task.get("domain", "general")
         log.info(f"[BIRTH] Executing: {task['id']} | domain={domain}")
 
-        # ── BRAIN: ShadowMind intuition (async, non-blocking) ───────
+        # ── MARS READ — guidance from all past cycles ────────────────
+        # This is where past failures actually change current decisions.
+        # render_guidance() is sync — no Ollama needed — reads from persisted JSON.
+        mars_guidance   = self.brain.mars_guidance(domain)
+        mars_principles = self.brain.mars_principles(domain, limit=5)
+        if mars_guidance:
+            log.info(f"[MARS] {len(mars_principles)} principle(s) active for {domain}")
+        else:
+            log.info(f"[MARS] No principles yet for {domain} — cycle 1 will write the first")
+
+        # ── SHADOW — parallel pattern intuition (async) ──────────────
         intuition = ""
         if self.brain.online:
-            try:
-                intuition = asyncio.get_event_loop().run_until_complete(
-                    self.brain.get_intuition(task["description"], f"domain={domain}")
-                )
-                if intuition:
-                    log.info(f"[BRAIN] ShadowMind: {intuition[:120]}")
-            except Exception as e:
-                log.warning(f"[BRAIN] ShadowMind skipped: {e}")
+            shadow_context = f"domain={domain} | mars_guidance={mars_guidance[:200] if mars_guidance else 'none'}"
+            intuition = self._run_async(
+                self.brain.shadow_intuition(task["description"], shadow_context)
+            )
+            if intuition:
+                log.info(f"[SHADOW] {intuition[:150]}")
 
-        # ── PERCEPTION ──────────────────────────────────────────────
+        # ── PERCEPTION — real API signals, trust-weighted ────────────
         observations = self.ailice.spawn_agent(domain)
         self.stats["domains_scanned"] += 1
 
-        # ── ADAPTATION — real PnL from db ───────────────────────────
+        # ── ADAPTATION — real PnL from zeus_prime.db ─────────────────
+        # MARS principles can also nudge SAFLA: if a principle says a strategy
+        # failed, record a negative outcome for it right now.
         self.safla.record_from_db(domain)
+        for p in mars_principles:
+            prevention = p.get("prevention", "").lower()
+            for s in self.genetic.population:
+                sid = s["id"].lower()
+                if any(tok in sid for tok in prevention.split() if len(tok) > 4):
+                    self.safla.record(domain, s["id"], -0.2)
+                    log.info(f"[MARS→SAFLA] Penalised {s['id']} based on principle: {p.get('principle','')[:60]}")
 
-        # ── EVOLUTION ───────────────────────────────────────────────
+        # ── EVOLUTION ────────────────────────────────────────────────
         self.genetic.evolve(self.safla, domain)
         self.stats["evolutions"] += 1
 
-        # ── CLARITY ─────────────────────────────────────────────────
+        # ── CLARITY — QuantumCore scores WITH MARS penalty weights ───
         fittest  = sorted(self.genetic.population, key=lambda s: s["fitness"], reverse=True)[:5]
-        decision = self.quantum.optimize(fittest, observations)
+        decision = self.quantum.optimize(fittest, observations, mars_principles=mars_principles)
 
-        # ── ACTION ──────────────────────────────────────────────────
+        # ── ACTION ───────────────────────────────────────────────────
         result = self.zeus.execute(domain, decision)
         if result.get("executed"):
             self.stats["executions"] += 1
 
-        # ── BIRTH AGAIN ─────────────────────────────────────────────
+        # ── BIRTH AGAIN ──────────────────────────────────────────────
         self.baby_agi.mark_complete(task, result)
         self.baby_agi.spawn_next_cycle_tasks(result)
 
-        # ── BRAIN: MARS reflection (async, non-blocking) ────────────
-        if self.brain.online:
-            try:
-                record = TaskRecord(
-                    task=task["description"],
-                    steps=[f"perception={len(observations)}", f"domain={domain}", f"executed={result.get('executed')}"],
-                    tool_calls=1,
-                    success=result.get("executed", False),
-                    result=str(result.get("q_score", ""))
-                )
-                asyncio.get_event_loop().run_until_complete(
-                    self.brain.reflect(
-                        task["description"],
-                        record.steps,
-                        str(result),
-                        record.success
-                    )
-                )
-            except Exception as e:
-                log.warning(f"[BRAIN] MARS reflection skipped: {e}")
+        # ── MARS WRITE — reflect and store principle/procedure in L3 ─
+        # This is the write side of the loop.
+        # Next cycle's MARS READ will retrieve what we store here.
+        steps = [
+            f"domain={domain}",
+            f"observations={len(observations)}",
+            f"mars_principles_active={len(mars_principles)}",
+            f"strategy={decision.get('strategy', {}).get('id', '?')}",
+            f"q_score={decision.get('q_score', 0)}",
+            f"executed={result.get('executed', False)}",
+            f"intuition={intuition[:100] if intuition else 'none'}",
+        ]
+        success  = result.get("executed", False)
+        outcome  = str(result.get("q_score", "0")) + f" | domain={domain} | executed={success}"
 
-        self._print_vitals()
+        reflection = self._run_async(
+            self.brain.mars_reflect(task["description"], steps, outcome, success)
+        )
+        if reflection:
+            self.stats["mars_reflections"] = self.stats.get("mars_reflections", 0) + 1
 
-    def _print_vitals(self):
-        brain_status = "🧠 ONLINE" if self.brain.online else "🧠 OFFLINE"
+        # Record improvement in MetaImprovementLog
+        self.brain.record_improvement(
+            system=f"quantum_prime.{domain}",
+            action=f"cycle {self.stats['cycles']} | strategy={decision.get('strategy',{}).get('id','?')} | q={decision.get('q_score',0):.3f}",
+            impact=decision.get("q_score", 0.0)
+        )
+
+        self._print_vitals(mars_principles)
+
+    def _print_vitals(self, mars_principles: list = None):
+        brain_status  = "🧠 ONLINE" if self.brain.online else "🧠 OFFLINE"
+        mars_count    = len(mars_principles) if mars_principles else 0
+        reflections   = self.stats.get("mars_reflections", 0)
         log.info(
             f"[VITALS] {brain_status} | cycles={self.stats['cycles']} | "
             f"executions={self.stats['executions']} | evolutions={self.stats['evolutions']} | "
+            f"mars_principles={mars_count} | mars_reflections={reflections} | "
             f"strategies={len(self.genetic.population)} | "
             f"tasks_queued={len(self.baby_agi.task_queue)} | T={self.quantum.temperature:.4f}"
         )
@@ -821,7 +956,8 @@ class QuantumPrime:
             "temperature":   round(self.quantum.temperature, 4),
             "backend":       self.quantum.backend,
             "task_queue":    len(self.baby_agi.task_queue),
-            "total_deployed": self.zeus.total_deployed,
+            "total_deployed":    self.zeus.total_deployed,
+            "mars_reflections":  self.stats.get("mars_reflections", 0),
         }
 
 
