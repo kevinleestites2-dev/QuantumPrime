@@ -2,9 +2,27 @@
 
 ## THE FIRST EVER LIVING QUANTUM OPTIMIZATION ENGINE
 
-> *Not a trading bot. Not a task bot. A UNIVERSAL OPTIMIZATION ENGINE — alive.*
+> *Not a trading bot. Not a task bot.*
+> *A UNIVERSAL OPTIMIZATION ENGINE — alive.*
+> **We do not follow trends. We ARE the trend setters.**
 
 Born: 2026-05-11 | Forgemaster: Kevin Stites | Pantheon: The Living Core
+
+---
+
+## The Distinction
+
+Everyone else builds thermometers — they read the market temperature.
+
+**QuantumPrime is the thermostat. It sets it.**
+
+- Followers ask: *"What is the market doing?"* → react → lose edge → chase forever
+- QuantumPrime asks: *"What should the market do?"* → evolve → optimize → execute → repeat
+
+At scale — optimizing thousands of micro-decisions across prediction markets, crypto,
+real estate, and auto simultaneously — QuantumPrime does not just find trends.
+
+**It generates the volume that creates them.**
 
 ---
 
@@ -19,13 +37,14 @@ Born: 2026-05-11 | Forgemaster: Kevin Stites | Pantheon: The Living Core
 | CLARITY | Quantum Core | Finds the optimal execution path through survivors. |
 | ACTION | ZeusPrime | Pulls the trigger. |
 
-Every other bot has ACTION only. Maybe ADAPTATION. QuantumPrime has all six. That is not a bot — that is an **organism.**
+Every other bot has ACTION only. Maybe ADAPTATION.
+QuantumPrime has all six. That is not a bot — that is an **organism.**
 
 ---
 
-## Domains
+## Domains (Never Just One Market)
 
-QuantumPrime doesn't know what a "trade" is. It only knows **OPTIMIZATION.**
+QuantumPrime does not know what a "trade" is. It only knows **OPTIMIZATION.**
 
 - **Prediction Markets** — Polymarket, Kalshi, Manifold, PredictIt
 - **Crypto** — Binance, Coinbase, Hyperliquid
@@ -45,14 +64,14 @@ Same brain. Infinite hunting grounds.
 ## Architecture
 
 ```
-BabyAGI whispers a goal →
-  AIlice spawns the right agents →
-    agents observe the domain →
-      SAFLA records what works →
-        Genetic Algorithm breeds stronger strategies →
-          QuantumCore finds the optimal path →
+BabyAGI whispers a goal
+  AIlice spawns the right agents
+    Agents observe the domain
+      SAFLA records what works
+        Genetic Algorithm breeds stronger strategies, kills losers
+          QuantumCore finds the optimal path
             ZeusPrime executes
-              → loop forever, getting smarter every cycle
+              Loop forever — getting smarter every single cycle
 ```
 
 ---
@@ -60,13 +79,13 @@ BabyAGI whispers a goal →
 ## Run It
 
 ```bash
-# Dry run (simulate — safe)
+# Dry run (safe, simulate only)
 python3 quantum_prime.py --cycles 5
 
-# Live forever
+# Run live forever
 python3 quantum_prime.py --live --interval 30
 
-# Status after N cycles
+# Run N cycles then print status
 python3 quantum_prime.py --cycles 10 --interval 0
 ```
 
@@ -74,6 +93,8 @@ python3 quantum_prime.py --cycles 10 --interval 0
 
 ## Pantheon Role
 
-QuantumPrime is the **optimization brain** of the Pantheon. Every other Prime feeds it data. It finds the best path. ZeusPrime executes.
+QuantumPrime is the **optimization brain** of the Pantheon.
+Every other Prime feeds it data. It finds the best path. ZeusPrime executes.
 
-Part of the 25-bot Pantheon empire. Built by one Forgemaster. For the world.
+Part of the 25-bot Pantheon empire.
+Built by one Forgemaster. Never done before. For the world.
