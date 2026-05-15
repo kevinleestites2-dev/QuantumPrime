@@ -21,11 +21,17 @@
 """
 
 import os, json, time, sqlite3, subprocess, urllib.request
+from pathlib import Path
 import random, logging, threading, asyncio
 from datetime import datetime
 from collections import deque
 from alpha_evolve import AlphaEvolve
 from typing import Any
+
+# ─── Shared paths ───────────────────────────────────────────────────────────
+_MEMORY_DIR = Path("memory")
+_MEMORY_DIR.mkdir(exist_ok=True)
+_TRADE_LOG  = _MEMORY_DIR / "trade_log.json"
 
 # ─── Zeus Brain ─────────────────────────────────────────────────────────────
 try:
@@ -721,6 +727,21 @@ class ZeusPrimeInterface:
     def execute(self, domain: str, decision: dict) -> dict:
         if not decision.get("execute"):
             log.info(f"[ACTION] Signal too weak — skip (domain={domain})")
+            # Log skips too — AlphaEvolve needs full picture
+            try:
+                existing = json.loads(_TRADE_LOG.read_text()) if _TRADE_LOG.exists() else []
+                existing.append({
+                    "ts":       datetime.utcnow().isoformat(),
+                    "strategy": decision.get("strategy", {}).get("id", "?"),
+                    "domain":   domain,
+                    "pnl":      0.0,
+                    "position": 0.0,
+                    "executed": False,
+                })
+                existing = existing[-2000:]
+                _TRADE_LOG.write_text(json.dumps(existing, indent=2))
+            except Exception:
+                pass
             return {"executed": False, "reason": "signal below threshold"}
 
         executor = self.EXECUTORS.get(domain)
@@ -777,6 +798,23 @@ class ZeusPrimeInterface:
             impact=decision["q_score"]
         )
         self.execution_log.append(entry)
+
+        # ── Persist to trade_log.json for AlphaEvolve + SAFLA ──
+        try:
+            existing = json.loads(_TRADE_LOG.read_text()) if _TRADE_LOG.exists() else []
+            existing.append({
+                "ts":       entry["ts"],
+                "strategy": entry.get("strategy", "?"),
+                "domain":   entry.get("domain", "?"),
+                "pnl":      entry.get("q_score", 0.0),   # q_score as proxy until real PnL wired
+                "position": entry.get("position", 0.0),
+                "executed": True,
+            })
+            existing = existing[-2000:]  # keep last 2000
+            _TRADE_LOG.write_text(json.dumps(existing, indent=2))
+        except Exception as tl_err:
+            log.warning(f"[TRADE_LOG] write error: {tl_err}")
+
         return {"executed": True, **entry}
 
 
