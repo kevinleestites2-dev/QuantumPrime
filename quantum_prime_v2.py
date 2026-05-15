@@ -24,6 +24,7 @@ import os, json, time, sqlite3, subprocess, urllib.request
 import random, logging, threading, asyncio
 from datetime import datetime
 from collections import deque
+from alpha_evolve import AlphaEvolve
 from typing import Any
 
 # ─── Zeus Brain ─────────────────────────────────────────────────────────────
@@ -811,7 +812,10 @@ class QuantumPrime:
         self.baby_agi = BabyAGICore(self.brain)
         self.ailice   = AIliceFactory(self.brain)
         self.safla    = SAFLACore(self.brain)
-        self.genetic  = GeneticEngine()
+        self.genetic      = GeneticEngine()
+        self.alpha_evolve  = AlphaEvolve(population_size=15)
+        self._alpha_cycle  = 0
+        self._alpha_every  = 50  # run AlphaEvolve every 50 QP cycles
         self.quantum  = QuantumCore()
         self.zeus     = ZeusPrimeInterface(self.brain, dry_run=dry_run)
 
@@ -955,6 +959,21 @@ class QuantumPrime:
             action=f"cycle {self.stats['cycles']} | strategy={decision.get('strategy',{}).get('id','?')} | q={decision.get('q_score',0):.3f}",
             impact=decision.get("q_score", 0.0)
         )
+
+        # ── AlphaEvolve: evolve the evolution engine every N cycles ──
+        self._alpha_cycle += 1
+        if self._alpha_cycle >= self._alpha_every:
+            self._alpha_cycle = 0
+            try:
+                result = self.alpha_evolve.run_cycle(verbose=False)
+                applied = self.alpha_evolve.apply_to_quantum(self)
+                log.info(
+                    f"[ALPHA_EVOLVE] gen={result['generation']} "
+                    f"best_fitness={result['fitness']:.4f} "
+                    f"genome={result['id']} applied."
+                )
+            except Exception as ae_err:
+                log.warning(f"[ALPHA_EVOLVE] cycle error: {ae_err}")
 
         self._print_vitals(mars_principles)
 
