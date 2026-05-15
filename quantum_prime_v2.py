@@ -1016,6 +1016,9 @@ class QuantumPrime:
             "task_queue":    len(self.baby_agi.task_queue),
             "total_deployed":    self.zeus.total_deployed,
             "mars_reflections":  self.stats.get("mars_reflections", 0),
+            "alpha_evolve_gen":      self.alpha_evolve.generation,
+            "alpha_evolve_best_fit": round(self.alpha_evolve.best_genome().fitness, 4),
+            "alpha_evolve_pop":      len(self.alpha_evolve.population),
         }
 
 
